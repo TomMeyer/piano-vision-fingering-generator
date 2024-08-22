@@ -2,6 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
+
 # C extensions
 *.so
 
@@ -554,7 +555,6 @@ $RECYCLE.BIN/
 *.lnk
 
 # End of https://www.toptal.com/developers/gitignore/api/python,jupyternotebooks,visualstudiocode,pycharm,linux,macos,windows
-
 
 data/
 *.ipynb
