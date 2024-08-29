@@ -9,10 +9,7 @@ from piano_vision_fingering_generator.constants import (
     Direction,
     Finger,
 )
-from piano_vision_fingering_generator.midi.generate_fingerings import (
-    GeneratedPianoFingerings,
-    PianoFingering,
-)
+import music21 as m21
 
 HandOrString = Union[Hand, str]
 
@@ -64,9 +61,6 @@ class Note(BaseModel):
     def simple_yaml(self) -> str:
         return yaml.safe_dump(self.simple_json())
 
-    def fingering_matches(self, fingering: PianoFingering) -> bool:
-        return self.measure == fingering.measure and self.note_name == fingering.name
-
 
 class PianoVisionMeasure(BaseModel):
     model_config = ConfigDict(use_enum_values=True)
@@ -86,10 +80,20 @@ class PianoVisionMeasure(BaseModel):
     def note_count(self) -> int:
         return len(self.notes)
 
+    def to_measure(self) -> "Measure":
+        return Measure(
+            time=self.time,
+            timeSignature=self.time_signature,
+            ticksPerMeasure=int(self.measure_ticks_end - self.measure_ticks_start),
+            ticksStart=self.measure_ticks_start,
+            totalTicks=self.measure_ticks_end - self.measure_ticks_start,
+            type=2,  # TODO: What does type mean? So far I've seen it as 0, 1, 2. Almost always 2.
+        )
+
 
 class TracksV2(BaseModel):
-    left: list[PianoVisionMeasure]
     right: list[PianoVisionMeasure]
+    left: list[PianoVisionMeasure]
 
     @property
     def all_notes(self) -> list[Note]:
@@ -140,25 +144,25 @@ class TracksV2(BaseModel):
 
 
 class Tempo(BaseModel):
-    time: float
     bpm: float
     ticks: int
+    time: float
 
 
-class Section(BaseModel):
+class PianoVisionSection(BaseModel):
     name: str
     start_measure: float = Field(alias="startMeasure")
     end_measure: float = Field("endMeasure")
 
 
-class PositionGroup(BaseModel):
+class PianoVisionPositionGroup(BaseModel):
     name: str
     is_treble: bool = Field(alias="isTreble")
     start_measure: float = Field(alias="startMeasure")
     end_measure: float = Field("endMeasure")
 
 
-class TechnicalGroup(BaseModel):
+class PianoVisionTechnicalGroup(BaseModel):
     name: str
     is_treble: bool = Field(alias="isTreble")
     bar_type: str = Field(alias="barType")
@@ -194,28 +198,32 @@ class KeySignature(BaseModel):
     ticks: int
 
 
-class SongTimeSignature(BaseModel):
+class PianoVisionTimeSignature(BaseModel):
     ticks: int
     time_signature: TimeSignature = Field(alias="timeSignature")
     measures: int
 
 
 class PianoVisionSong(BaseModel):
-    name: str
-    artist: str
+
+    supporting_tracks: list[SupportingTrack] = Field(alias="supportingTracks")
     start_time: float
     song_length: float
     resolution: int
     tempos: list[Tempo]
     key_signatures: list[KeySignature] = Field(alias="keySignatures")
-    time_signatures: list[SongTimeSignature] = Field(alias="timeSignatures")
+    time_signatures: list[PianoVisionTimeSignature] = Field(alias="timeSignatures")
     measures: list[Measure]
     tracks_v2: TracksV2 = Field(alias="tracksV2")
     accompanying_instruments: list[int] = Field(alias="accompanyingInstruments")
     accompanying_channels: list[int] = Field(alias="accompanyingChannels")
+    name: str
+    artist: str
+    accompanying_tracks: Optional[list[Any]] = Field(
+        alias="accompanyingTracks",
+        default=None,
+    )
+    sections: list[PianoVisionSection]
+    position_groups: list[PianoVisionPositionGroup] = Field(alias="positionGroups")
+    technical_groups: list[PianoVisionTechnicalGroup] = Field(alias="technicalGroups")
     max_simplification: int = Field(alias="maxSimplification")
-    accompanying_tracks: list[Any] = Field(alias="accompanyingTracks")
-    supporting_tracks: list[SupportingTrack] = Field(alias="supportingTracks")
-    sections: list[Section]
-    position_groups: list[PositionGroup] = Field(alias="positionGroups")
-    technical_groups: list[TechnicalGroup] = Field(alias="technicalGroups")
