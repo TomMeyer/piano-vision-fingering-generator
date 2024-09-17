@@ -51,23 +51,79 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass
-class SongTimeSignatureFixer:
-    m21_song: m21.stream.Score
-    right_hand_part_index: int = 0
-    left_hand_part_index: int = 1
-
-    part_index_to_clean: Optional[int] = None
-    part_index_to_source: Optional[int] = None
+class SongPartMixin:
+    m21_song: Optional[m21.stream.Score] = None
+    right_hand_part_index: Optional[int] = None
+    left_hand_part_index: Optional[int] = None
 
     @property
     def right_hand_part(self) -> m21.stream.Part:
+        if self.right_hand_part_index is None:
+            self._find_part_index()
+        if self.right_hand_part_index is None:
+            raise ValueError("Right hand part index not found")
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
         return self.m21_song.parts[self.right_hand_part_index]
 
     @property
     def left_hand_part(self) -> m21.stream.Part:
+        if self.left_hand_part_index is None:
+            self._find_part_index()
+        if self.left_hand_part_index is None:
+            raise ValueError("Left hand part index not found")
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
         return self.m21_song.parts[self.left_hand_part_index]
 
+    def _find_part_index(self):
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
+        if self.right_hand_part_index is None:
+            try:
+                treble_clef = (
+                    self.m21_song.recurse()
+                    .getElementsByClass(m21.clef.TrebleClef)
+                    .first()
+                )
+                treble_clef = cast(m21.clef.TrebleClef, treble_clef)
+                rh_part = treble_clef.getContextByClass(m21.stream.Part)
+                rh_index = self.m21_song.parts.parts.index(rh_part)
+                self.right_hand_part_index = rh_index
+                logger.info(f"Right hand part index found: {rh_index}")
+            except Exception as e:
+                logger.error(
+                    f"Error finding right hand part index, defaulting to 0: {e}"
+                )
+                self.right_hand_part_index = 0
+        if self.left_hand_part_index is None:
+            try:
+                bass_clef = (
+                    self.m21_song.recurse()
+                    .getElementsByClass(m21.clef.BassClef)
+                    .first()
+                )
+                bass_clef = cast(m21.clef.BassClef, bass_clef)
+                lh_part = bass_clef.getContextByClass(m21.stream.Part)
+                lh_index = self.m21_song.parts.parts.index(lh_part)
+                self.left_hand_part_index = lh_index
+                logger.info(f"Left hand part index found: {lh_index}")
+            except Exception as e:
+                logger.error(
+                    f"Error finding left hand part index, defaulting to 1: {e}"
+                )
+                self.left_hand_part_index = 1
+
+
+@dataclass
+class SongTimeSignatureFixer(SongPartMixin):
+
+    part_index_to_clean: Optional[int] = field(init=False, default=None)
+    part_index_to_source: Optional[int] = field(init=False, default=None)
+
     def run(self) -> None:
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
         clean_needed = self.check_if_clean_is_needed()
         if not clean_needed:
             return
@@ -161,7 +217,6 @@ class SongTimeSignatureFixer:
                 raise ValueError(
                     f"No measure {measure.measureNumber} found for target part"
                 )
-            # target_measure.offset = measure.offset
             for metronome in measure.getElementsByClass(m21.tempo.MetronomeMark):
                 target_measure.insert(metronome.offset, metronome)
 
@@ -175,16 +230,13 @@ class SongTimeSignatureFixer:
 
 
 @dataclass
-class MetronomeGetterMixin:
-    m21_song: m21.stream.Score
+class MetronomeGetterMixin(SongPartMixin):
     right_hand_metronomes: list["MetronomeWithBoundaries"] = field(
         default_factory=list, init=False
     )
     left_hand_metronomes: list["MetronomeWithBoundaries"] = field(
         default_factory=list, init=False
     )
-    right_hand_part_index: int = 0
-    left_hand_part_index: int = 1
 
     def __post_init__(self):
         for metronome_data in self.right_hand_part.metronomeMarkBoundaries():
@@ -199,14 +251,6 @@ class MetronomeGetterMixin:
                     metronome_data[2], metronome_data[0], metronome_data[1]
                 )
             )
-
-    @property
-    def right_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.right_hand_part_index]  # type: ignore
-
-    @property
-    def left_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.left_hand_part_index]  # type: ignore
 
     @property
     def right_metronome_tempos(self) -> list[float]:
@@ -267,7 +311,7 @@ class SongDurationFixer(MetronomeGetterMixin):
             durations_match = rh_m.duration.quarterLength == lh_m.duration.quarterLength
             if not generated_measure and durations_match:
                 continue
-            if rh_m is None or lh_m is None:
+            if rh_m is None:
                 raise ValueError("One of the measures is None")
             logger.info(f"Fixing measure duration for measure {rh_m.number}")
             self.fix_measure_duration(rh_m, lh_m)
@@ -301,18 +345,17 @@ class SongDurationFixer(MetronomeGetterMixin):
 
 
 @dataclass
-class PianoVisionSongBuilder:
-    midi_path: InitVar[StrPath]
+class PianoVisionSongBuilder(SongPartMixin):
+    midi_path: InitVar[StrPath] = ""
     hand_size: HandSize = HandSize.MEDIUM
     sections: list[PianoVisionSection] = field(default_factory=list)
-    m21_song: m21.stream.Score = field(init=False)
-    _right_hand_part_index: Optional[int] = field(init=False, default=None)
-    _left_hand_part_index: Optional[int] = field(init=False, default=None)
     _fingerings_generated: bool = field(init=False, default=False)
 
     def __post_init__(self, midi_path: StrPath) -> None:
+        if not midi_path:
+            raise ValueError(f"No MIDI path provided {midi_path}")
         self.midi_song_path: Path = Path(midi_path)
-        song = converter.parse(self.midi_song_path)  # quantizePost=False)
+        song = converter.parse(self.midi_song_path)
         if not isinstance(song, m21.stream.Score):
             raise ValueError("Only scores are supported")
         self.m21_song = song
@@ -321,67 +364,28 @@ class PianoVisionSongBuilder:
         self.m21_song.makeMeasures(inPlace=True)
         for part in self.m21_song.parts:
             part.makeBeams(inPlace=True)
-        SongTimeSignatureFixer(self.m21_song).run()
-        SongDurationFixer(self.m21_song).run()
+        SongTimeSignatureFixer(
+            self.m21_song,
+            right_hand_part_index=self.right_hand_part_index,
+            left_hand_part_index=self.left_hand_part_index,
+        ).run()
+        SongDurationFixer(
+            self.m21_song,
+            right_hand_part_index=self.right_hand_part_index,
+            left_hand_part_index=self.left_hand_part_index,
+        ).run()
         self.strip_empty_trailing_measures()
 
     def strip_empty_trailing_measures(self):
-        right_part = self.m21_song.parts[self.right_hand_part_index]
-        left_part = self.m21_song.parts[self.left_hand_part_index]
-        rm = right_part.measure(-1)
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
+
+        rm = self.right_hand_part.measure(-1)
         if rm.duration.quarterLength == 0:
-            right_part.remove(rm)
-        lm = left_part.measure(-1)
+            self.right_hand_part.remove(rm)
+        lm = self.left_hand_part.measure(-1)
         if lm.duration.quarterLength == 0:
-            left_part.remove(lm)
-
-    @property
-    def right_hand_part_index(self) -> int:
-        if self._right_hand_part_index is None:
-            raise ValueError("Right hand part index not found")
-        return self._right_hand_part_index
-
-    @property
-    def left_hand_part_index(self) -> int:
-        if self._left_hand_part_index is None:
-            raise ValueError("Left hand part index not found")
-        return self._left_hand_part_index
-
-    def _find_part_index(self):
-        if self._right_hand_part_index is None:
-            try:
-                treble_clef = (
-                    self.m21_song.recurse()
-                    .getElementsByClass(m21.clef.TrebleClef)
-                    .first()
-                )
-                treble_clef = cast(m21.clef.TrebleClef, treble_clef)
-                rh_part = treble_clef.getContextByClass(m21.stream.Part)
-                rh_index = self.m21_song.parts.parts.index(rh_part)
-                self._right_hand_part_index = rh_index
-                logger.info(f"Right hand part index found: {rh_index}")
-            except Exception as e:
-                logger.error(
-                    f"Error finding right hand part index, defaulting to 0: {e}"
-                )
-                self._right_hand_part_index = 0
-        if self._left_hand_part_index is None:
-            try:
-                bass_clef = (
-                    self.m21_song.recurse()
-                    .getElementsByClass(m21.clef.BassClef)
-                    .first()
-                )
-                bass_clef = cast(m21.clef.BassClef, bass_clef)
-                lh_part = bass_clef.getContextByClass(m21.stream.Part)
-                lh_index = self.m21_song.parts.parts.index(lh_part)
-                self._left_hand_part_index = lh_index
-                logger.info(f"Left hand part index found: {lh_index}")
-            except Exception as e:
-                logger.error(
-                    f"Error finding left hand part index, defaulting to 1: {e}"
-                )
-                self._left_hand_part_index = 1
+            self.left_hand_part.remove(lm)
 
     @cached_property
     def song_name(self) -> str:
@@ -391,6 +395,8 @@ class PianoVisionSongBuilder:
         If it is not available, returns the name of the MIDI file
         with dashes and underscores replaced with spaces.
         """
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
         name = self.m21_song.metadata.title
         if not name:
             name = self.midi_song_path.stem
@@ -406,6 +412,8 @@ class PianoVisionSongBuilder:
 
         TODO: How else can we get the author?
         """
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
         try:
             author = self.m21_song.metadata.author
         except AttributeError:
@@ -430,7 +438,10 @@ class PianoVisionSongBuilder:
         """
         if self._fingerings_generated:
             return
-
+        if self.right_hand_part_index is None:
+            raise ValueError("Right hand part index not found")
+        if self.left_hand_part_index is None:
+            raise ValueError("Left hand part index not found")
         rhand = pianoplayer.hand.Hand(RIGHT, self.hand_size.value)
         rhand.noteseq = pianoplayer.scorereader.reader(
             self.m21_song, beam=self.right_hand_part_index
@@ -449,15 +460,16 @@ class PianoVisionSongBuilder:
         """
         Main method to build the PianoVisionSong object from the MIDI file.
         """
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
         self._add_fingerings_to_music21()
-
         with tqdm(total=6) as pbar:
             logger.info("Building PianoVisionSong")
             tracks_v2 = PianoVisionMeasureBuilder(
                 self.m21_song,
-                right_hand_part_index=self.right_hand_part_index,
-                left_hand_part_index=self.left_hand_part_index,
                 ticks_per_quarter=self.song_resolution,
+                left_hand_part_index=self.left_hand_part_index,
+                right_hand_part_index=self.right_hand_part_index,
             ).build()
             pbar.update(1)
             tempos = PianoVisionTempoBuilder(
@@ -477,7 +489,9 @@ class PianoVisionSongBuilder:
             ).build()
             pbar.update(1)
             time_signatures = PianoVisionTimeSignatureBuilder(
-                self.m21_song, self.right_hand_part_index, self.left_hand_part_index
+                self.m21_song,
+                right_hand_part_index=self.right_hand_part_index,
+                left_hand_part_index=self.left_hand_part_index,
             ).build()
             pbar.update(1)
 
@@ -504,8 +518,9 @@ class PianoVisionSongBuilder:
         )
 
     def build_parallel(self) -> PianoVisionSong:
+        if self.m21_song is None:
+            raise ValueError("No music21 song found")
         with multiprocessing.Pool(processes=multiprocessing.cpu_count()) as pool:
-
             functions = {
                 "tracksV2": PianoVisionMeasureBuilder(self.m21_song).build,
                 "tempos": PianoVisionTempoBuilder(self.m21_song).build,
@@ -556,23 +571,11 @@ class PianoVisionSongLengthBuilder:
             raise ValueError("No metronome found")
         metronome = cast(m21.tempo.MetronomeMark, metronome)
 
-        song_length = float(metronome.durationToSeconds(self.m21_song.duration))
-        return song_length
+        return float(metronome.durationToSeconds(self.m21_song.duration))
 
 
 @dataclass
-class PianoVisionTimeSignatureBuilder:
-    m21_song: m21.stream.Score
-    right_hand_part_index: int = 0
-    left_hand_part_index: int = 1
-
-    @property
-    def right_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.right_hand_part_index]  # type: ignore
-
-    @property
-    def left_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.left_hand_part_index]  # type: ignore
+class PianoVisionTimeSignatureBuilder(SongPartMixin):
 
     def build(self) -> list[PianoVisionTimeSignature]:
         results: list[PianoVisionTimeSignature] = []
@@ -672,20 +675,9 @@ class MetronomeWithBoundaries:
 
 @dataclass
 class PianoVisionSupportingTracksBuilder(MetronomeGetterMixin):
-    m21_song: m21.stream.Score
-    right_hand_part_index: int = 0
-    left_hand_part_index: int = 1
 
     def __post_init__(self) -> None:
         MetronomeGetterMixin.__post_init__(self)
-
-    @property
-    def right_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.right_hand_part_index]  # type: ignore
-
-    @property
-    def left_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.left_hand_part_index]  # type: ignore
 
     def build(self) -> list[SupportingTrack]:
         rh = self._build_supporting_track_for_hand(self.right_hand_part, Hand.RIGHT)
@@ -776,9 +768,9 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
             Builds and returns the PianoVisionMeasure objects for both the right and left hand parts.
     """
 
-    m21_song: m21.stream.Score
-    right_hand_part_index: int = 0
-    left_hand_part_index: int = 1
+    # m21_song: m21.stream.Score
+    # right_hand_part_index: int = 0
+    # left_hand_part_index: int = 1
     ticks_per_quarter: int = 480
     min_note_id: int = field(default=0, init=False)
     max_note_id: int = field(default=0, init=False)
@@ -807,13 +799,13 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
         else:
             raise ValueError(f"Invalid hand {hand}")
 
-    @property
-    def right_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.right_hand_part_index]  # type: ignore
+    # @property
+    # def right_hand_part(self) -> m21.stream.Part:
+    #     return self.m21_song.parts[self.right_hand_part_index]  # type: ignore
 
-    @property
-    def left_hand_part(self) -> m21.stream.Part:
-        return self.m21_song.parts[self.left_hand_part_index]  # type: ignore
+    # @property
+    # def left_hand_part(self) -> m21.stream.Part:
+    #     return self.m21_song.parts[self.left_hand_part_index]  # type: ignore
 
     def build(self) -> TracksV2:
         """
@@ -858,13 +850,12 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
         return pv_measures
 
     def _get_metronomes_for_hand(self, part: m21.stream.Part, hand: Hand) -> None:
-        metronomes = []
-        for metronome_data in part.metronomeMarkBoundaries():
-            metronomes.append(
-                MetronomeWithBoundaries(
-                    metronome_data[2], metronome_data[0], metronome_data[1]
-                )
+        metronomes = [
+            MetronomeWithBoundaries(
+                metronome_data[2], metronome_data[0], metronome_data[1]
             )
+            for metronome_data in part.metronomeMarkBoundaries()
+        ]
         if hand == Hand.RIGHT:
             self._right_hand_metronomes = metronomes
         elif hand == Hand.LEFT:
@@ -910,7 +901,7 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
             float(measure.offset + measure.duration.quarterLength)
             * self.ticks_per_quarter
         )
-        pv_measure = PianoVisionMeasure(
+        return PianoVisionMeasure(
             direction=Direction.DOWN,
             time=measure_data["offsetSeconds"],
             timeEnd=measure_data["endTimeSeconds"],
@@ -922,7 +913,6 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
             rests=rests,
             timeSignature=time_signature,
         )
-        return pv_measure
 
     # Called by _build_pv_measure_from_m21_measure
     def _handle_m21_general_note(
@@ -1002,11 +992,10 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
         if not m21_rest.activeSite:
             raise ValueError("No active site found for rest")
         start_time = metronome.to_seconds(m21_rest.activeSite.offset + m21_rest.offset)
-        rest = Rest(
+        return Rest(
             noteLengthType=NoteLengthType.from_duration(m21_rest.duration),
             time=start_time,
         )
-        return rest
 
     # Final step to build the note
     def _build_pv_note(
@@ -1017,8 +1006,6 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
         fingering: Finger,
     ) -> Note:
         octave: int = int(m21_note.pitch.octave)  # type: ignore
-        # if fingering == Finger.NOT_SET:
-        # raise ValueError(f"Fingering not set for note {m21_note}")
         hand_abbrev = "r" if note_hand == Hand.RIGHT else "l"
         metronome = self.get_metronome_for_offset(m21_note.offset, note_hand)
         note_id = f"{hand_abbrev}{self.note_count}"
