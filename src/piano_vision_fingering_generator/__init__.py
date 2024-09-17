@@ -1,10 +1,41 @@
 import logging
 from typing import Union
 import yaml
-import piano_vision_fingering_generator.piano_vision as piano_vision
-from piano_vision_fingering_generator.midi import generate_piano_fingerings, HandSize
-from piano_vision_fingering_generator.main import (
-    generate_fingerings_and_update_piano_vision_song,
+import tqdm
+from piano_vision_fingering_generator.constants import (
+    HandSize,
+    COMMON_DURATIONS,
+    DURATION_MAP,
+    ORDINAL_NUMBERS_TO_WORDS,
+    RIGHT,
+    LEFT,
+    Direction,
+    Finger,
+    Hand,
+    NoteLengthType,
+    TimeSignature,
+    StrPath,
+)
+from piano_vision_fingering_generator.generator import PianoVisionSongBuilder
+from piano_vision_fingering_generator.models import (
+    PianoVisionSong,
+    PianoVisionSection,
+    PianoVisionMeasure,
+    Note,
+    Rest,
+    KeySignature,
+    TimeSignature,
+    Tempo,
+    PianoVisionPositionGroup,
+    PianoVisionTechnicalGroup,
+    PianoVisionTimeSignature,
+)
+from piano_vision_fingering_generator.io import (
+    read_piano_vision_json,
+    save_piano_vision_json,
+    build_piano_vision_json,
+    build_and_save_piano_vision_json,
+    compare_piano_vision_json_files,
 )
 
 
@@ -39,13 +70,13 @@ class YAMLformatter(logging.Formatter):
                 "function": record.funcName,
                 # "threadName": record.threadName,
                 # "processName": record.processName,
-                "message": record.msg,
+                "message": record.getMessage(),
             }
         else:
             log_record = {
                 "level": record.levelname,
                 "timestamp": self.formatTime(record, self.datefmt),
-                "message": record.msg,
+                "message": record.getMessage(),
             }
 
         msg: str = yaml.safe_dump(log_record, default_flow_style=False, sort_keys=False)
@@ -56,22 +87,62 @@ class YAMLformatter(logging.Formatter):
         return msg
 
 
+class TqdmLoggingHandler(logging.Handler):
+    def __init__(self, level=logging.NOTSET):
+        super().__init__(level)
+        self.setFormatter(YAMLformatter())
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            msg = self.format(record)
+            tqdm.tqdm.write(msg)
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+
 logging.basicConfig(
     level=logging.INFO,
-    handlers=[logging.StreamHandler()],
 )
 for handler in logging.getLogger().handlers:
     handler.setFormatter(YAMLformatter())
 
+logging.getLogger("piano_vision_fingering_generator").setLevel(logging.INFO)
+
 
 def set_logging_level(level: Union[int, str]) -> None:
-    logging.getLogger().setLevel(level)
+    logging.getLogger("piano_vision_fingering_generator").setLevel(level)
 
 
 __all__ = [
-    "piano_vision",
-    "generate_piano_fingerings",
     "HandSize",
     "set_logging_level",
-    "generate_fingerings_and_update_piano_vision_song",
+    "RIGHT",
+    "LEFT",
+    "Direction",
+    "Finger",
+    "Hand",
+    "NoteLengthType",
+    "TimeSignature",
+    "COMMON_DURATIONS",
+    "DURATION_MAP",
+    "ORDINAL_NUMBERS_TO_WORDS",
+    "StrPath",
+    "PianoVisionSongBuilder",
+    "PianoVisionSong",
+    "PianoVisionSection",
+    "PianoVisionMeasure",
+    "Note",
+    "Rest",
+    "KeySignature",
+    "TimeSignature",
+    "Tempo",
+    "PianoVisionPositionGroup",
+    "PianoVisionTechnicalGroup",
+    "PianoVisionTimeSignature",
+    "read_piano_vision_json",
+    "save_piano_vision_json",
+    "build_piano_vision_json",
+    "build_and_save_piano_vision_json",
+    "compare_piano_vision_json_files",
 ]
