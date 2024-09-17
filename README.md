@@ -1,12 +1,20 @@
 # piano-vision-fingering-generator
 
-Automatic piano generator for PianoVision.
-
+Generate a PianoVision song file with fingerings from a MIDI file.
 
 ## Usage
 
-```python
+### CLI 
 
+`pv-fingering-generator [-h] midi_path {XXS,XS,S,M,L,XL,XXL}`
+
+```bash
+pv-fingering-generator <midi_file> <hand_size>
+```
+
+#### Example
+```bash
+pv-fingering-generator "path/to/midi/file.mid" M
 ```
 
 ## Acknowledgements
