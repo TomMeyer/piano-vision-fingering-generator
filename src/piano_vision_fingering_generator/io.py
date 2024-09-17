@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from typing import Optional
 from piano_vision_fingering_generator.constants import HandSize, StrPath
 from piano_vision_fingering_generator.generator import PianoVisionSongBuilder
 from piano_vision_fingering_generator.models import PianoVisionSong
@@ -25,17 +26,32 @@ def save_piano_vision_json(
 def build_piano_vision_json(
     midi_path: StrPath,
     hand_size: HandSize,
-    right_hand_midi_part_index: int = 0,
-    left_hand_midi_part_index: int = 1,
+    right_hand_midi_part_index: Optional[int] = None,
+    left_hand_midi_part_index: Optional[int] = None,
 ) -> PianoVisionSong:
     midi_path = Path(midi_path)
-    builder = PianoVisionSongBuilder(midi_path, hand_size)
+    builder = PianoVisionSongBuilder(
+        midi_path=midi_path,
+        hand_size=hand_size,
+        right_hand_part_index=right_hand_midi_part_index,
+        left_hand_part_index=left_hand_midi_part_index,
+    )
     return builder.build()
 
 
-def build_and_save_piano_vision_json(midi_path: StrPath, hand_size: HandSize):
+def build_and_save_piano_vision_json(
+    midi_path: StrPath,
+    hand_size: HandSize,
+    right_hand_midi_part_index: Optional[int] = None,
+    left_hand_midi_part_index: Optional[int] = None,
+):
     midi_path = Path(midi_path)
-    builder = PianoVisionSongBuilder(midi_path, hand_size)
+    builder = PianoVisionSongBuilder(
+        midi_path=midi_path,
+        hand_size=hand_size,
+        right_hand_part_index=left_hand_midi_part_index,
+        left_hand_part_index=left_hand_midi_part_index,
+    )
     song = builder.build()
     outpath = midi_path.with_name(f"{midi_path.stem}_piano_vision.json")
     save_piano_vision_json(song, outpath)
@@ -48,8 +64,6 @@ def compare_piano_vision_json_files(pv_path1: StrPath, pv_path2: StrPath):
     song2 = read_piano_vision_json(pv_path2)
     song_1_data = song1.model_dump_json(by_alias=True, indent=2).strip().splitlines()
     song_2_data = song2.model_dump_json(by_alias=True, indent=2).strip().splitlines()
-    output_data = []
-    for line in difflib.unified_diff(song_1_data, song_2_data):
-        output_data.append(line)
+    output_data = list(difflib.unified_diff(song_1_data, song_2_data))
     output_path = Path(f"{pv_path1.stem}_diff_{pv_path2.stem}.diff")
     output_path.write_text("\n".join(output_data))
