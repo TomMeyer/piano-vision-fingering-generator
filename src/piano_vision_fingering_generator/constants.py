@@ -1,7 +1,8 @@
-from enum import Enum, StrEnum
 import os
+from enum import Enum, StrEnum
 from pathlib import Path
 from typing import Final, Union
+
 import music21 as m21
 
 RIGHT: Final = "right"

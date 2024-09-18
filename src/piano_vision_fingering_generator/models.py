@@ -1,23 +1,23 @@
-from time import sleep
 from typing import Any, Optional, Union
-from pydantic import BaseModel, ConfigDict, Field
+
 import yaml
+from pydantic import BaseModel, ConfigDict, Field
+
 from piano_vision_fingering_generator.constants import (
-    NoteLengthType,
-    TimeSignature,
-    Hand,
     Direction,
     Finger,
+    Hand,
+    NoteLengthType,
+    TimeSignature,
 )
-import music21 as m21
 
 HandOrString = Union[Hand, str]
 
 
 def string_to_hand(hand: str) -> Hand:
-    if hand.lower() in ("r", "right", "righthand", "right_hand"):
+    if hand.lower() in {"r", "right", "righthand", "right_hand"}:
         hand = "right"
-    elif hand.lower() == ("l", "left", "lefthand", "left_hand"):
+    elif hand.lower() == {"l", "left", "lefthand", "left_hand"}:
         hand = "left"
     return Hand(hand)
 
@@ -87,7 +87,7 @@ class PianoVisionMeasure(BaseModel):
             ticksPerMeasure=int(self.measure_ticks_end - self.measure_ticks_start),
             ticksStart=self.measure_ticks_start,
             totalTicks=self.measure_ticks_end - self.measure_ticks_start,
-            type=2,  # TODO: What does type mean? So far I've seen it as 0, 1, 2. Almost always 2.
+            type=2,  # TODO: What does type mean? Seen 0, 1, 2. Almost always 2.
         )
 
 
@@ -205,7 +205,6 @@ class PianoVisionTimeSignature(BaseModel):
 
 
 class PianoVisionSong(BaseModel):
-
     supporting_tracks: list[SupportingTrack] = Field(alias="supportingTracks")
     start_time: float
     song_length: float

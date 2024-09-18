@@ -1,10 +1,11 @@
+import difflib
 import json
 from pathlib import Path
 from typing import Optional
+
 from piano_vision_fingering_generator.constants import HandSize, StrPath
 from piano_vision_fingering_generator.generator import PianoVisionSongBuilder
 from piano_vision_fingering_generator.models import PianoVisionSong
-import difflib
 
 
 def read_piano_vision_json(pv_path: StrPath) -> PianoVisionSong:
@@ -28,6 +29,7 @@ def build_piano_vision_json(
     hand_size: HandSize,
     right_hand_midi_part_index: Optional[int] = None,
     left_hand_midi_part_index: Optional[int] = None,
+    ai: bool = False,
 ) -> PianoVisionSong:
     midi_path = Path(midi_path)
     builder = PianoVisionSongBuilder(
@@ -35,6 +37,7 @@ def build_piano_vision_json(
         hand_size=hand_size,
         right_hand_part_index=right_hand_midi_part_index,
         left_hand_part_index=left_hand_midi_part_index,
+        ai=ai,
     )
     return builder.build()
 
@@ -44,13 +47,15 @@ def build_and_save_piano_vision_json(
     hand_size: HandSize,
     right_hand_midi_part_index: Optional[int] = None,
     left_hand_midi_part_index: Optional[int] = None,
+    ai: bool = False,
 ):
     midi_path = Path(midi_path)
     builder = PianoVisionSongBuilder(
         midi_path=midi_path,
         hand_size=hand_size,
-        right_hand_part_index=left_hand_midi_part_index,
+        right_hand_part_index=right_hand_midi_part_index,
         left_hand_part_index=left_hand_midi_part_index,
+        ai=ai,
     )
     song = builder.build()
     outpath = midi_path.with_name(f"{midi_path.stem}_piano_vision.json")

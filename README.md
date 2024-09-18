@@ -1,3 +1,6 @@
+[![pre-commit.ci status](https://results.pre-commit.ci/badge/github/TomMeyer/piano-vision-fingering-generator/main.svg)](https://results.pre-commit.ci/latest/github/TomMeyer/piano-vision-fingering-generator/main)
+
+
 # piano-vision-fingering-generator
 
 Generate a PianoVision song file with fingerings from a MIDI file.
