@@ -39,6 +39,8 @@ from piano_vision_fingering_generator.models import (
     Tempo,
 )
 
+__version__ = "0.1.1"
+
 
 class YAMLformatter(logging.Formatter):
     def __init__(self, *arg, **kwargs) -> None:

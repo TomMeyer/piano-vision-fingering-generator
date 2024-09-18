@@ -18,7 +18,7 @@ def build_cli() -> argparse.ArgumentParser:
     parser.add_argument(
         "--ai",
         action="store_true",
-        help="Use the AI model to generate the fingering",
+        help="Use the AI model to generate the fingerings",
     )
     parser.add_argument(
         "--right-hand-midi-part-index",
@@ -37,6 +37,7 @@ def build_cli() -> argparse.ArgumentParser:
         "-v",
         action="store_true",
     )
+    parser.add_help = True
     return parser
 
 

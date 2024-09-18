@@ -11,8 +11,11 @@ import pianoplayer
 import pianoplayer.hand
 import pianoplayer.scorereader
 from music21 import converter
-from tqdm.auto import tqdm
 
+from piano_vision_fingering_generator.ai import (
+    LLMModelAgent,
+    PianoVisionFingeringGeneratorAI,
+)
 from piano_vision_fingering_generator.constants import (
     LEFT,
     RIGHT,
@@ -463,37 +466,28 @@ class PianoVisionSongBuilder(SongPartMixin):
         if not self.ai:
             self._add_fingerings_to_music21()
 
-        with tqdm(total=6) as pbar:
-            logger.info("Building PianoVisionSong")
-            tracks_v2 = PianoVisionMeasureBuilder(
-                self.m21_song,
-                ticks_per_quarter=self.song_resolution,
-                left_hand_part_index=self.left_hand_part_index,
-                right_hand_part_index=self.right_hand_part_index,
-            ).build()
-            pbar.update(1)
-            tempos = PianoVisionTempoBuilder(
-                self.m21_song, self.song_resolution
-            ).build()
-            pbar.update(1)
-            key_signatures = PianoVisionKeySignatureBuilder(
-                self.m21_song, self.song_resolution
-            ).build()
-            pbar.update(1)
-            song_length = PianoVisionSongLengthBuilder(self.m21_song).build()
-            pbar.update(1)
-            supporting_tracks = PianoVisionSupportingTracksBuilder(
-                self.m21_song,
-                right_hand_part_index=self.right_hand_part_index,
-                left_hand_part_index=self.left_hand_part_index,
-            ).build()
-            pbar.update(1)
-            time_signatures = PianoVisionTimeSignatureBuilder(
-                self.m21_song,
-                right_hand_part_index=self.right_hand_part_index,
-                left_hand_part_index=self.left_hand_part_index,
-            ).build()
-            pbar.update(1)
+        logger.info("Building PianoVisionSong")
+        tracks_v2 = PianoVisionMeasureBuilder(
+            self.m21_song,
+            ticks_per_quarter=self.song_resolution,
+            left_hand_part_index=self.left_hand_part_index,
+            right_hand_part_index=self.right_hand_part_index,
+        ).build()
+        tempos = PianoVisionTempoBuilder(self.m21_song, self.song_resolution).build()
+        key_signatures = PianoVisionKeySignatureBuilder(
+            self.m21_song, self.song_resolution
+        ).build()
+        song_length = PianoVisionSongLengthBuilder(self.m21_song).build()
+        supporting_tracks = PianoVisionSupportingTracksBuilder(
+            self.m21_song,
+            right_hand_part_index=self.right_hand_part_index,
+            left_hand_part_index=self.left_hand_part_index,
+        ).build()
+        time_signatures = PianoVisionTimeSignatureBuilder(
+            self.m21_song,
+            right_hand_part_index=self.right_hand_part_index,
+            left_hand_part_index=self.left_hand_part_index,
+        ).build()
 
         logger.info("finished building PianoVisionSong")
         song = PianoVisionSong(
@@ -516,6 +510,15 @@ class PianoVisionSongBuilder(SongPartMixin):
             positionGroups=[],  # TODO: Add this later
             technicalGroups=[],  # TODO: Add this later
         )
+        if self.ai:
+            # agent = LMStudioAgent(url="http://localhost:1234")
+            agent = LLMModelAgent(
+                model_id="unsloth/Meta-Llama-3.1-8B-Instruct-bnb-4bit",
+                max_new_tokens=2000,
+            )
+            PianoVisionFingeringGeneratorAI(
+                song=song, agent=agent, measures_per_prompt=10, hand_size=self.hand_size
+            ).build()
         return song
 
     def build_parallel(self) -> PianoVisionSong:
@@ -545,11 +548,10 @@ class PianoVisionSongBuilder(SongPartMixin):
                 "technicalGroups": [],
             }
 
-            with tqdm(total=len(functions)) as pbar:
+            for func in functions:
 
                 def update_results(result):
                     results.update(result)
-                    pbar.update(1)
 
                 for _, func in functions.items():
                     pool.apply_async(func, callback=update_results)

@@ -5,7 +5,7 @@
 groups = ["default", "ai", "dev", "test"]
 strategy = ["inherit_metadata"]
 lock_version = "4.5.0"
-content_hash = "sha256:fc651be00426efe60185a538dcb7d39f10597d593d4d5b8676d735c51aee50fb"
+content_hash = "sha256:9ebd4dc1d61b8c79dd2c78d75610f9c9b99c93d839447f1a6b492b75db2c7dcc"
 
 [[metadata.targets]]
 requires_python = ">=3.11"
@@ -194,6 +194,20 @@ dependencies = [
 files = [
     {file = "beautifulsoup4-4.12.3-py3-none-any.whl", hash = "sha256:b80878c9f40111313e55da8ba20bdba06d8fa3969fc68304167741bbf9e082ed"},
     {file = "beautifulsoup4-4.12.3.tar.gz", hash = "sha256:74e3d1928edc070d21748185c46e3fb33490f22f52a3addee9aee0f4f7781051"},
+]
+
+[[package]]
+name = "bitsandbytes"
+version = "0.43.3"
+summary = "k-bit optimizers and matrix multiplication routines."
+groups = ["ai"]
+dependencies = [
+    "numpy",
+    "torch",
+]
+files = [
+    {file = "bitsandbytes-0.43.3-py3-none-manylinux_2_24_x86_64.whl", hash = "sha256:cc99507c352be0715098b2c7577b690dd158972dc4ea10c7495bac104c7c79f0"},
+    {file = "bitsandbytes-0.43.3-py3-none-win_amd64.whl", hash = "sha256:257f6552f2144748a84e6c44e1f7a98f3da888f675ed74e18fd7f7eb13c6cafa"},
 ]
 
 [[package]]

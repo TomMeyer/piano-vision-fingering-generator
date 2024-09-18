@@ -1,7 +1,7 @@
 from typing import Any, Optional, Union
 
 import yaml
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from piano_vision_fingering_generator.constants import (
     Direction,
@@ -49,6 +49,11 @@ class Note(BaseModel):
     id: str
     finger: Finger
     smp: Optional[str] = None
+
+    @field_validator("start", "end")
+    @classmethod
+    def round_floats(cls, v: float) -> float:
+        return round(v, 5)
 
     def simple_json(self) -> dict[str, Any]:
         return {

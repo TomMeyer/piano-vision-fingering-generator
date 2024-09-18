@@ -1,6 +1,9 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "piano-vision-fingering-generator"
-version = "0.1.0"
 description = "Piano fingering generator for PianoVision"
 authors = [{ name = "Thomas Meyer", email = "thomas@thomasmeyer.co" }]
 dependencies = [
@@ -12,19 +15,24 @@ dependencies = [
 requires-python = ">=3.11"
 readme = "README.md"
 license = { text = "MIT" }
+dynamic = ["version"]
+
+[tool.hatch.version]
+path = "src/piano_vision_fingering_generator/__init__.py"
 
 [project.scripts]
 pv-fingering-generator = "piano_vision_fingering_generator.cli:main"
 pv-fingering-generator-gui = "piano_vision_fingering_generator.gui:run_app"
 
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
-
-
-[tool.pdm]
-distribution = true
+[project.optional-dependencies]
+ai = [
+    "huggingface>=0.0.1",
+    "transformers>=4.44.2",
+    "torch>=2.4.1",
+    "accelerate>=0.34.2",
+    "bitsandbytes>=0.43.3",
+]
 
 [tool.pdm.dev-dependencies]
 dev = [
@@ -32,11 +40,12 @@ dev = [
     "ipython>=8.26.0",
     "jupyterlab>=4.2.4",
     "pre-commit>=3.8.0",
-
 ]
 
+[tool.pdm]
+distribution = true
+
 [tool.ruff]
-# Ruff settings
 line-length = 88
 target-version = "py311"
 fix = true
@@ -54,7 +63,6 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "B", "I"]
 fixable = ["E", "F", "B", "I"]
-
 
 [tool.ruff.format]
 docstring-code-format = true

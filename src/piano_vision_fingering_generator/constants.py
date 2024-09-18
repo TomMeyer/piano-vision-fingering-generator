@@ -54,10 +54,7 @@ def round_duration_to_nearest(
         DURATION_MAP.keys(), key=lambda x: abs(x - float(duration.quarterLength))
     )
     matched_duration = DURATION_MAP[closest_duration]
-    rounded_duration = m21.duration.Duration(
-        type=matched_duration.type, dots=matched_duration.dots
-    )
-    return rounded_duration
+    return m21.duration.Duration(type=matched_duration.type, dots=matched_duration.dots)
 
 
 class NoteLengthType(StrEnum):
@@ -141,3 +138,14 @@ class HandSize(StrEnum):
     LARGE = "L"
     EXTRA_LARGE = "XL"
     EXTRA_ExTRA_LARGE = "XXL"
+
+    def to_span(self) -> float:
+        return {
+            HandSize.EXTRA_EXTRA_SMALL: 0.33,
+            HandSize.EXTRA_SMALL: 0.46,
+            HandSize.SMALL: 0.64,
+            HandSize.MEDIUM: 0.82,
+            HandSize.LARGE: 1.0,
+            HandSize.EXTRA_LARGE: 1.1,
+            HandSize.EXTRA_ExTRA_LARGE: 1.2,
+        }[self] * 21.0
