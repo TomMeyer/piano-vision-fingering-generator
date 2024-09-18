@@ -1,46 +1,46 @@
 import logging
 from typing import Union
-import yaml
+
 import tqdm
+import yaml
+
 from piano_vision_fingering_generator.constants import (
-    HandSize,
     COMMON_DURATIONS,
     DURATION_MAP,
+    LEFT,
     ORDINAL_NUMBERS_TO_WORDS,
     RIGHT,
-    LEFT,
     Direction,
     Finger,
     Hand,
+    HandSize,
     NoteLengthType,
-    TimeSignature,
     StrPath,
+    TimeSignature,
 )
 from piano_vision_fingering_generator.generator import PianoVisionSongBuilder
-from piano_vision_fingering_generator.models import (
-    PianoVisionSong,
-    PianoVisionSection,
-    PianoVisionMeasure,
-    Note,
-    Rest,
-    KeySignature,
-    TimeSignature,
-    Tempo,
-    PianoVisionPositionGroup,
-    PianoVisionTechnicalGroup,
-    PianoVisionTimeSignature,
-)
 from piano_vision_fingering_generator.io import (
+    build_and_save_piano_vision_json,
+    build_piano_vision_json,
+    compare_piano_vision_json_files,
     read_piano_vision_json,
     save_piano_vision_json,
-    build_piano_vision_json,
-    build_and_save_piano_vision_json,
-    compare_piano_vision_json_files,
+)
+from piano_vision_fingering_generator.models import (
+    KeySignature,
+    Note,
+    PianoVisionMeasure,
+    PianoVisionPositionGroup,
+    PianoVisionSection,
+    PianoVisionSong,
+    PianoVisionTechnicalGroup,
+    PianoVisionTimeSignature,
+    Rest,
+    Tempo,
 )
 
 
 class YAMLformatter(logging.Formatter):
-
     def __init__(self, *arg, **kwargs) -> None:
         yaml.SafeDumper.add_representer(str, self.str_representer)
         super().__init__(*arg, **kwargs)

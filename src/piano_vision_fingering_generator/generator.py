@@ -1,51 +1,44 @@
-from dataclasses import InitVar, dataclass, field
-from functools import cached_property
 import logging
 import multiprocessing
 import multiprocessing.pool
+from dataclasses import InitVar, dataclass, field
+from functools import cached_property
 from pathlib import Path
-from music21.stream.base import Measure
+from typing import Any, Optional, cast
+
+import music21 as m21
+import pianoplayer
+import pianoplayer.hand
+import pianoplayer.scorereader
+from music21 import converter
 from tqdm.auto import tqdm
 
+from piano_vision_fingering_generator.ai import PianoVisionFingeringGeneratorAI
 from piano_vision_fingering_generator.constants import (
     LEFT,
     RIGHT,
+    Finger,
     Hand,
     HandSize,
+    NoteLengthType,
     StrPath,
     TimeSignature,
     round_duration_to_nearest,
 )
 from piano_vision_fingering_generator.models import (
+    Direction,
     KeySignature,
+    Note,
+    PianoVisionMeasure,
+    PianoVisionSection,
     PianoVisionSong,
     PianoVisionTimeSignature,
+    Rest,
+    SupportingTrack,
     SupportingTrackMidi,
     Tempo,
     TracksV2,
 )
-
-from typing import Any, Optional, cast
-from music21 import converter
-from piano_vision_fingering_generator.constants import (
-    Finger,
-    NoteLengthType,
-)
-from piano_vision_fingering_generator.models import (
-    PianoVisionMeasure,
-    Direction,
-    Rest,
-    Note,
-    SupportingTrack,
-    TracksV2,
-    PianoVisionSection,
-)
-from pathlib import Path
-import pianoplayer
-import pianoplayer.hand
-import pianoplayer.scorereader
-import music21 as m21
-
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +110,6 @@ class SongPartMixin:
 
 @dataclass
 class SongTimeSignatureFixer(SongPartMixin):
-
     part_index_to_clean: Optional[int] = field(init=False, default=None)
     part_index_to_source: Optional[int] = field(init=False, default=None)
 
@@ -170,7 +162,6 @@ class SongTimeSignatureFixer(SongPartMixin):
     def change_time_signature_for_part(
         self, target_part: m21.stream.Part, source_part: m21.stream.Part
     ) -> None:
-
         source_part_measures_count = len(source_part.measures(0, None))
         original_target_part_measures_count = len(target_part.measures(0, None))
 
@@ -191,8 +182,8 @@ class SongTimeSignatureFixer(SongPartMixin):
         source_part.makeMeasures(inPlace=True)
         logger.info(
             (
-                f"Source measure count: {source_part_measures_count}\n"
-                f"Original target measure count: {original_target_part_measures_count}\n"
+                f"source measure count: {source_part_measures_count}\n"
+                f"target measure count: {original_target_part_measures_count}\n"
                 f"new target measures count: {new_target_part_measures_count}"
             )
         )
@@ -203,7 +194,8 @@ class SongTimeSignatureFixer(SongPartMixin):
             raise ValueError("No last measure found")
         if not all(el.isRest for el in last_measure.notesAndRests):
             logger.info(
-                "different number of note containing measures in the source and target parts, post-cleaning"
+                "different number of note containing measures in the source and "
+                "target parts, post-cleaning"
             )
             return
         part.remove(last_measure)
@@ -281,8 +273,7 @@ class MetronomeGetterMixin(SongPartMixin):
 
 @dataclass
 class SongDurationFixer(MetronomeGetterMixin):
-
-    def run(self) -> None:
+    def run(self) -> None:  # sourcery skip: remove-redundant-if
         left_measure_count = len(self.left_hand_part.measures(0, None))
         right_measure_count = len(self.right_hand_part.measures(0, None))
         measure_count = max(left_measure_count, right_measure_count)
@@ -317,7 +308,6 @@ class SongDurationFixer(MetronomeGetterMixin):
             self.fix_measure_duration(rh_m, lh_m)
 
     def fix_measure_duration(self, m1: m21.stream.Measure, m2: m21.stream.Measure):
-
         if m1.duration.quarterLength > m2.duration.quarterLength:
             target = m2
             source = m1
@@ -349,6 +339,7 @@ class PianoVisionSongBuilder(SongPartMixin):
     midi_path: InitVar[StrPath] = ""
     hand_size: HandSize = HandSize.MEDIUM
     sections: list[PianoVisionSection] = field(default_factory=list)
+    ai: bool = False
     _fingerings_generated: bool = field(init=False, default=False)
 
     def __post_init__(self, midi_path: StrPath) -> None:
@@ -381,9 +372,13 @@ class PianoVisionSongBuilder(SongPartMixin):
             raise ValueError("No music21 song found")
 
         rm = self.right_hand_part.measure(-1)
+        if rm is None:
+            raise ValueError("No last measure found for right hand")
         if rm.duration.quarterLength == 0:
             self.right_hand_part.remove(rm)
         lm = self.left_hand_part.measure(-1)
+        if lm is None:
+            raise ValueError("No last measure found for left hand")
         if lm.duration.quarterLength == 0:
             self.left_hand_part.remove(lm)
 
@@ -434,7 +429,8 @@ class PianoVisionSongBuilder(SongPartMixin):
 
     def _add_fingerings_to_music21(self) -> None:
         """
-        Uses marcomusy/pianoplayer library to generate fingerings for the song and add them to the midi song.
+        Uses marcomusy/pianoplayer library to generate fingerings
+        for the song and add them to the midi song.
         """
         if self._fingerings_generated:
             return
@@ -462,7 +458,9 @@ class PianoVisionSongBuilder(SongPartMixin):
         """
         if self.m21_song is None:
             raise ValueError("No music21 song found")
-        self._add_fingerings_to_music21()
+        if not self.ai:
+            self._add_fingerings_to_music21()
+
         with tqdm(total=6) as pbar:
             logger.info("Building PianoVisionSong")
             tracks_v2 = PianoVisionMeasureBuilder(
@@ -496,11 +494,11 @@ class PianoVisionSongBuilder(SongPartMixin):
             pbar.update(1)
 
         logger.info("finished building PianoVisionSong")
-        return PianoVisionSong(
+        song = PianoVisionSong(
             name=self.song_name,
             artist=self.song_author,
             resolution=self.song_resolution,
-            start_time=0,  # TODO: is this always 0?
+            start_time=0,
             song_length=song_length,
             accompanyingChannels=[0, 0],  # TODO: is this always [0, 0]?
             accompanyingInstruments=[-2, -1],  # TODO: is this always [-2, -1]?
@@ -516,6 +514,9 @@ class PianoVisionSongBuilder(SongPartMixin):
             positionGroups=[],  # TODO: Add this later
             technicalGroups=[],  # TODO: Add this later
         )
+        if self.ai:
+            PianoVisionFingeringGeneratorAI(song).build()
+        return song
 
     def build_parallel(self) -> PianoVisionSong:
         if self.m21_song is None:
@@ -550,7 +551,7 @@ class PianoVisionSongBuilder(SongPartMixin):
                     results.update(result)
                     pbar.update(1)
 
-                for key, func in functions.items():
+                for _, func in functions.items():
                     pool.apply_async(func, callback=update_results)
             pool.close()
             pool.join()
@@ -576,7 +577,6 @@ class PianoVisionSongLengthBuilder:
 
 @dataclass
 class PianoVisionTimeSignatureBuilder(SongPartMixin):
-
     def build(self) -> list[PianoVisionTimeSignature]:
         results: list[PianoVisionTimeSignature] = []
         rh_time_sigs = self._build_time_signature_for_part(self.right_hand_part)
@@ -675,7 +675,6 @@ class MetronomeWithBoundaries:
 
 @dataclass
 class PianoVisionSupportingTracksBuilder(MetronomeGetterMixin):
-
     def __post_init__(self) -> None:
         MetronomeGetterMixin.__post_init__(self)
 
@@ -732,7 +731,7 @@ class PianoVisionSupportingTracksBuilder(MetronomeGetterMixin):
 @dataclass
 class PianoVisionMeasureBuilder(MetronomeGetterMixin):
     """
-    A class for building PianoVisionMeasure objects from a music21 Score, Part, or Opus object.
+    A class for building PianoVisionMeasure objects from a music21 Score
 
     Attributes
     ----------
@@ -765,12 +764,10 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
     Methods
     -------
         build(): TracksV2:
-            Builds and returns the PianoVisionMeasure objects for both the right and left hand parts.
+            Builds and returns the PianoVisionMeasure objects
+            for both the right and left hand parts.
     """
 
-    # m21_song: m21.stream.Score
-    # right_hand_part_index: int = 0
-    # left_hand_part_index: int = 1
     ticks_per_quarter: int = 480
     min_note_id: int = field(default=0, init=False)
     max_note_id: int = field(default=0, init=False)
@@ -798,14 +795,6 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
             self._left_time_sig = time_sig
         else:
             raise ValueError(f"Invalid hand {hand}")
-
-    # @property
-    # def right_hand_part(self) -> m21.stream.Part:
-    #     return self.m21_song.parts[self.right_hand_part_index]  # type: ignore
-
-    # @property
-    # def left_hand_part(self) -> m21.stream.Part:
-    #     return self.m21_song.parts[self.left_hand_part_index]  # type: ignore
 
     def build(self) -> TracksV2:
         """
@@ -886,7 +875,6 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
         notes: list[Note] = []
         rests: list[Rest] = []
         for element in measure.notesAndRests:
-
             pv_element = self._handle_m21_general_note(element, measure, hand)
             match pv_element:
                 case Note():
@@ -933,7 +921,6 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
                         self._active_tie_note = None
                 return self._build_pv_note_from_m21_note(element, measure, hand)
             case m21.chord.Chord():
-
                 return self._build_pv_notes_from_m21_chord(element, measure, hand)
             case m21.note.Rest():
                 return self._build_pv_rest_from_m21_rest(element, hand)
@@ -975,7 +962,7 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
                 fingerings.append(Finger(art.fingerNumber))
             else:
                 print(art)
-        for chord_note, fingering in zip(m21_chord.notes, fingerings):
+        for chord_note, fingering in zip(m21_chord.notes, fingerings, strict=False):
             chord_note.offset = m21_chord.offset
             note = self._build_pv_note(
                 chord_note,
@@ -1044,3 +1031,11 @@ class PianoVisionMeasureBuilder(MetronomeGetterMixin):
         self.note_count += 1
         self.measure_note_count += 1
         return note
+
+
+# class PianoVisionFingeringBuilder:
+#     def __init__(self, m21_song: m21.stream.Score):
+#         self.m21_song = m21_song
+
+#     def build(self) -> list[PianoVisionFingering]:
+#         return []

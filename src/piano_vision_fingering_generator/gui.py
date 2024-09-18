@@ -1,16 +1,17 @@
 import signal
 import sys
 import tkinter as tk
-from tkinter import ttk, filedialog
-from ttkthemes import ThemedTk
 from pathlib import Path
+from tkinter import filedialog, ttk
 from typing import Optional
-from piano_vision_fingering_generator.io import build_and_save_piano_vision_json
+
+from ttkthemes import ThemedTk
+
 from piano_vision_fingering_generator.constants import HandSize
+from piano_vision_fingering_generator.io import build_and_save_piano_vision_json
 
 
 class PianoVisionFingeringGeneratorApp:
-
     def __init__(self):
         self.root: tk.Tk = ThemedTk(theme="arc")
         self.root.minsize(400, 200)

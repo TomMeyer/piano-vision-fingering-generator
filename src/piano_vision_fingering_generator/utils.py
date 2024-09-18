@@ -1,5 +1,5 @@
-from functools import wraps
 import cProfile
+from functools import wraps
 
 
 def profile(func):
