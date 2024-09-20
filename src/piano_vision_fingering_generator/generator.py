@@ -13,7 +13,6 @@ import pianoplayer.scorereader
 from music21 import converter
 from tqdm.auto import tqdm
 
-from piano_vision_fingering_generator.ai import PianoVisionFingeringGeneratorAI
 from piano_vision_fingering_generator.constants import (
     LEFT,
     RIGHT,
@@ -207,7 +206,10 @@ class SongTimeSignatureFixer(SongPartMixin):
             target_measure = target_part.measure(measure.measureNumber)
             if not target_measure:
                 raise ValueError(
-                    f"No measure {measure.measureNumber} found for target part"
+                    (
+                        f"No measure {measure.measureNumber} found "
+                        "for target part {target_part}"
+                    )
                 )
             for metronome in measure.getElementsByClass(m21.tempo.MetronomeMark):
                 target_measure.insert(metronome.offset, metronome)
@@ -514,8 +516,6 @@ class PianoVisionSongBuilder(SongPartMixin):
             positionGroups=[],  # TODO: Add this later
             technicalGroups=[],  # TODO: Add this later
         )
-        if self.ai:
-            PianoVisionFingeringGeneratorAI(song).build()
         return song
 
     def build_parallel(self) -> PianoVisionSong:
