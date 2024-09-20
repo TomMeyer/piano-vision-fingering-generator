@@ -17,7 +17,7 @@ HandOrString = Union[Hand, str]
 def string_to_hand(hand: str) -> Hand:
     if hand.lower() in {"r", "right", "righthand", "right_hand"}:
         hand = "right"
-    elif hand.lower() == {"l", "left", "lefthand", "left_hand"}:
+    elif hand.lower() in {"l", "left", "lefthand", "left_hand"}:
         hand = "left"
     return Hand(hand)
 
@@ -152,14 +152,14 @@ class Tempo(BaseModel):
 class PianoVisionSection(BaseModel):
     name: str
     start_measure: float = Field(alias="startMeasure")
-    end_measure: float = Field("endMeasure")
+    end_measure: float = Field(alias="endMeasure")
 
 
 class PianoVisionPositionGroup(BaseModel):
     name: str
     is_treble: bool = Field(alias="isTreble")
     start_measure: float = Field(alias="startMeasure")
-    end_measure: float = Field("endMeasure")
+    end_measure: float = Field(alias="endMeasure")
 
 
 class PianoVisionTechnicalGroup(BaseModel):
@@ -167,7 +167,7 @@ class PianoVisionTechnicalGroup(BaseModel):
     is_treble: bool = Field(alias="isTreble")
     bar_type: str = Field(alias="barType")
     start_measure: float = Field(alias="startMeasure")
-    end_measure: float = Field("endMeasure")
+    end_measure: float = Field(alias="endMeasure")
 
 
 class Measure(BaseModel):

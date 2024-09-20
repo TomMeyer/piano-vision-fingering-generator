@@ -39,7 +39,6 @@ dev = [
 # Ruff settings
 line-length = 88
 target-version = "py311"
-select = ["E", "F", "B", "I"]
 fix = true
 exclude = [
     ".git",
@@ -51,6 +50,11 @@ exclude = [
     "build",
     "dist",
 ]
+
+[tool.ruff.lint]
+select = ["E", "F", "B", "I"]
+fixable = ["E", "F", "B", "I"]
+
 
 [tool.ruff.format]
 docstring-code-format = true
