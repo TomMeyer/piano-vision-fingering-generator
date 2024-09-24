@@ -1,0 +1,35 @@
+# https://taskfile.dev
+
+version: '3'
+
+vars:
+  GREETING: Hello, World!
+
+tasks:
+  default:
+    deps:
+      - clean
+      - lint
+      - build
+    cmds:
+      - echo "{{.GREETING}}"
+    silent: true
+
+  clean:
+    cmds:
+      - echo "Cleaning..."
+    silent: true
+  
+
+  lint:
+    cmds:
+      - echo "Linting..."
+      - pre-commit run --all-files
+    silent: true
+
+
+  build:
+    cmds:
+      - echo "Building..."
+      - pyproject-build
+    silent: true

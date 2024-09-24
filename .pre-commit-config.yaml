@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.6.5
+    rev: v0.6.7
     hooks:
       # Run the linter.
       - id: ruff
@@ -8,3 +8,12 @@ repos:
       # Run the formatter.
       - id: ruff-format
 
+  - repo: https://github.com/ikamensh/flynt/
+    rev: '1.0.1'
+    hooks:
+    -   id: flynt
+
+  - repo: https://github.com/codespell-project/codespell
+    rev: v2.3.0
+    hooks:
+      - id: codespell  # See setup.cfg for args
