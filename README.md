@@ -1,3 +1,11 @@
+
+
+## Deprecated
+
+Due to the addition of the features this repository was aiming to acheive into the main Piano Vision application, this repository is no longer needed and is now in read-only.
+
+----
+
 [![pre-commit.ci status](https://results.pre-commit.ci/badge/github/TomMeyer/piano-vision-fingering-generator/main.svg)](https://results.pre-commit.ci/latest/github/TomMeyer/piano-vision-fingering-generator/main)
 
 
